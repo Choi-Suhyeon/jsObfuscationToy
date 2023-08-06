@@ -82,7 +82,7 @@ def analyze_lexeme(code: str) -> tuple[tuple[Kind, str]]:
     re_str_literal        = re.compile(rf'"{dbl_str_chars}"|' + rf"'{sgl_str_chars}'")
     re_tmplt_head_literal = re.compile(r'`('  + template_chars + r')?\$\{')
     re_tmplt_mid_literal  = re.compile(r'\}(' + template_chars + r')?\$\{')
-    re_tmplt_tail_literal = re.compile(r'\}(' + template_chars + r')?')
+    re_tmplt_tail_literal = re.compile(r'\}(' + template_chars + r')?`')
     re_tmplt_literal      = re.compile(rf'`{template_chars}`')
     re_identifier_kyword  = re.compile(r'[#_\$a-zA-Z][\$\w]*') # 원래 이렇게 두면 안 됨. class 안에 있을 때만 허용해야 됨.
     re_operator_bracket   = re.compile('|'.join(i.translate(re_special_chars) for i in sorted(operator_bracket, key=len, reverse=True)))
@@ -97,10 +97,10 @@ def analyze_lexeme(code: str) -> tuple[tuple[Kind, str]]:
             ({}, ())                                             if (matched := re_white_space.match(code))                                    else \
             ({}, Kind.NumberLiteral)                             if (matched := re_num_literal.match(code))                                    else \
             ({}, Kind.StringLiteral)                             if (matched := re_str_literal.match(code))                                    else \
-            ({}, Kind.TemplateLiteral)                           if (matched := re_tmplt_literal.match(code))                                  else \
             ({'in_tmplt': True}, Kind.TemplateHeadLiteral)       if (matched := re_tmplt_head_literal.match(code)) and not context['in_tmplt'] else \
             ({}, Kind.TemplateMiddleLiteral)                     if (matched := re_tmplt_mid_literal.match(code))  and context['in_tmplt']     else \
             ({'in_tmplt': False}, Kind.TemplateTailLiteral)      if (matched := re_tmplt_tail_literal.match(code)) and context['in_tmplt']     else \
+            ({}, Kind.TemplateLiteral)                           if (matched := re_tmplt_literal.match(code))                                  else \
             ({}, str_kind.get(matched.group(), Kind.Identifier)) if (matched := re_identifier_kyword.match(code))                              else \
             ({}, str_kind[matched.group()])                      if (matched := re_operator_bracket.match(code))                               else \
             ({}, None)
@@ -112,7 +112,7 @@ def analyze_lexeme(code: str) -> tuple[tuple[Kind, str]]:
         return analyze_lexeme_inner(
             code[matched.end():], 
             context | interim_ctx, 
-            result + ((interim_kind, matched.group()) if interim_kind else (),),
+            result + (((interim_kind, matched.group()),) if interim_kind else ()),
         )
 
     
@@ -127,10 +127,7 @@ if __name__ == '__main__':
     
     with open(target_nm, 'rt') as f:
         target = f.read()
-        start = time.process_time()
         result = analyze_lexeme(target)
-        end = time.process_time()
-        input(f'{end - start}\n : ')
         
     with open('result.txt', 'wt') as f:
         f.write(str(result))

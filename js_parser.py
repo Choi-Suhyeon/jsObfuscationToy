@@ -1,62 +1,40 @@
-from js_lexer import Kind, from_str, from_kind
-
-tkns: tuple[tuple[Kind, str]]
-idx:  int
-
-        
-def find_with_kind(kind: Kind, idx_param: int = None, terminated: set[Kind] = set()):
-    for i in range(idx if idx_param is None else idx_param):
-        if tkns[i][0] == kind:       return i
-        if kind[i][0] in terminated: break
-    
-    return -1
+from js_parser_util import Tockens
+from js_lexer import Kind, analyze_lexeme
 
 
-def build_skip_brace(break_cond):
-    global tkns; global idxgi
-    
-    num_of_nested = 0
-    once_enter = False
-    
+contexts = [[[], []]]
+
+
+def estimate_source(tkns: Tockens):
     while True:
-        if once_enter and not num_of_nested:  
-            if break_cond(tkns[idx][0]): break
-        elif tkns[idx][0] == Kind.LeftBrace:  num_of_nested += 1; once_enter = True
-        elif tkns[idx][0] == Kind.RightBrace: num_of_nested -= 1
+        tkns.skip_brace({Kind.Var, Kind.Const, Kind.Let, Kind.Class, Kind.Function})
+        idx = tkns.idx
         
-        skip_val_any()
-
-
-def skip_brace():
-    build_skip_brace(lambda _: True)
-
-
-def skip_brace(terminated: set[Kind] = set()):
-    global idx
-    
-    build_skip_brace(lambda elem: (idx := (original := idx) + (elem in terminated)) - original)
-
-
-def skip_val(kind: Kind):
-    global tkns; global idx
-    
-    if tkns[idx][0] != kind: parse_error()
-    else:                    idx += 1
- 
-
-def skip_val_if(kind: Kind):
-    global tkns; global idx
-    
-    return bool((idx := idx + (tkns[original := idx][0] == kind)) - original)
-
-    
-def skip_val_any():
-    global idx
-    
-    idx += 1
+        if any((
+            tkns.token_at(idx - 1)[0] != Kind.Semicolon,  
+            tkns.token_at(idx + 1)[0] != Kind.Identifier,
+        )):
+            tkns.skip_val_any()
+            continue
+        
+        # var function / const let class 저장할 공간이 다르고요
+        # 함수같은 경우에는 함수 자체를 선언부터 할당(undefined를 할당을 안 함) -> function키워드가 있었던 index
+        # var은 undefined
+        
+        if tkns.token_at(idx) in {Kind.Var, Kind.Function}:
+            contexts[0][0].append((tkns.token_at(idx), tkns.token_at(idx + 1), ()))
+        else:
+            contexts[0][1].append((tkns.token_at(idx), tkns.token_at(idx + 1), None))
+        
+        print(f'{tkns.token_at(idx - 1)=}, {tkns.token_at(idx)=} {tkns.token_at(idx + 1)=}')
+        input(' : ')
         
 
-def parse_error():
-    print('[ERR] Parse Error')
-    exit(1)
+import sys
     
+target_nm = sys.argv[1]
+
+with open(target_nm, 'rt') as f:
+    target = f.read()
+    result = analyze_lexeme(target)
+    estimate_source(Tockens(result))
